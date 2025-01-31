@@ -26,6 +26,7 @@ import javax.annotation.Nonnull;
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.resetAllRequests;
 import static com.github.tomakehurst.wiremock.client.WireMock.stubFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathMatching;
 import static com.github.tomakehurst.wiremock.client.WireMock.verify;
@@ -55,14 +56,16 @@ class PublicApiServiceTest extends TestBase {
         assertThat(result).isNotNull();
         assertThat(result.truncatedTo(ChronoUnit.MINUTES))
             .isEqualTo(localDateTimeNow.truncatedTo(ChronoUnit.MINUTES));
-        assertThat(output).doesNotContain(
+        assertThat(output.getAll()).doesNotContain(
             "Retrying request to ",
             "Retries exhausted",
-            "Failed to convert response ");
+            "Failed to convert response ",
+            "timezone");
     }
 
     @Test
-    void retriesThreeTimesToGetZonedTime(@Nonnull final CapturedOutput output) throws JsonProcessingException {
+    void retriesOnceToGetZonedTime(@Nonnull final CapturedOutput output) throws JsonProcessingException {
+        resetAllRequests();
         final String zoneNames = TimeZone.getDefault().getID();
         final RuntimeException exception = new RuntimeException("Retries exhausted");
         stubFor(get(urlPathMatching("/" + zoneNames))
@@ -75,7 +78,7 @@ class PublicApiServiceTest extends TestBase {
         verify(2, getRequestedFor(urlPathMatching("/" + zoneNames)));
 
         assertThat(result).isNull();
-        assertThat(output).contains("Retrying request to ", "Retries exhausted");
-        assertThat(output).doesNotContain("Failed to convert response ");
+        assertThat(output.getAll()).contains("Retrying request to ", "Retries exhausted", "\"instance_timezone\":\"" + zoneNames + "\"");
+        assertThat(output.getAll()).doesNotContain("Failed to convert response ");
     }
 }
